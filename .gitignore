@@ -1,0 +1,77 @@
+# ──────────────────────────────────────────────
+# Dependencies
+# ──────────────────────────────────────────────
+# node_modules is the folder npm fills with downloaded library code.
+# It's huge (often hundreds of MB) and can always be rebuilt by running
+# `npm install`, which reads package.json and re-downloads everything.
+# Never commit it.
+node_modules/
+**/node_modules/
+
+# ──────────────────────────────────────────────
+# Environment & secrets
+# ──────────────────────────────────────────────
+# .env files contain secrets: database passwords, JWT signing keys,
+# API tokens. They MUST never reach GitHub. We commit a .env.example
+# file (with fake values) so other developers know what variables to set,
+# but the real .env stays local-only.
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+
+# ──────────────────────────────────────────────
+# Build output
+# ──────────────────────────────────────────────
+# When we compile TypeScript to JavaScript, or bundle React for production,
+# the output goes into folders like dist/ or build/. These are generated
+# artifacts — they can always be regenerated from source code, so we don't
+# track them.
+dist/
+build/
+**/dist/
+**/build/
+
+# ──────────────────────────────────────────────
+# Logs
+# ──────────────────────────────────────────────
+# Log files are runtime output, not source code. They grow unbounded
+# and would pollute the repo.
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# ──────────────────────────────────────────────
+# Editor & OS files
+# ──────────────────────────────────────────────
+# VS Code stores per-folder settings in .vscode/. Some teams commit this
+# (to share settings), others don't. We'll keep it personal for now.
+.vscode/
+.idea/
+
+# Windows generates these "thumbnail cache" and metadata files automatically.
+# Nobody wants them in their repo.
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS generates these too — included so anyone on a Mac contributing
+# to your project doesn't accidentally commit them.
+.DS_Store
+
+# ──────────────────────────────────────────────
+# TypeScript
+# ──────────────────────────────────────────────
+# TypeScript's incremental build cache file.
+*.tsbuildinfo
+
+# ──────────────────────────────────────────────
+# Testing
+# ──────────────────────────────────────────────
+# Coverage reports are generated; they don't belong in source control.
+coverage/
+.nyc_output/
