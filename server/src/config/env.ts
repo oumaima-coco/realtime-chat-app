@@ -6,16 +6,11 @@
 
 import dotenv from "dotenv";
 
-// dotenv.config() reads the .env file from the project root and populates
-// process.env (Node's built-in object holding environment variables).
-// This must run BEFORE we read any env vars below.
 dotenv.config();
 
 // Helper: read a required env var and throw if it's missing.
-// We crash on startup instead of silently using `undefined` and breaking
-// later in confusing ways. This is a defensive programming pattern called
-// "fail fast" — better to discover misconfiguration immediately than at
-// runtime when a user is trying to use the app.
+// "Fail fast" pattern — better to discover misconfiguration immediately
+// than at runtime when a user hits the bug.
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -24,18 +19,19 @@ function requireEnv(name: string): string {
   return value;
 }
 
-// Export a single config object. Anywhere in the app that needs a config
-// value imports this and uses `env.PORT`, `env.CLIENT_ORIGIN`, etc.
-// Benefits:
-//   1. TypeScript autocomplete shows you what's available.
-//   2. If you typo `env.PROT` it's a compile error, not a silent undefined.
-//   3. Adding a new env var = update this file = everywhere benefits.
 export const env = {
-  PORT: Number(process.env.PORT) || 3000,  // Number() converts string -> number; fallback to 3000 if missing.
-  NODE_ENV: process.env.NODE_ENV ?? "development",  // ?? means "use the right side if left is null/undefined"
+  // Server
+  PORT: Number(process.env.PORT) || 3000,
+  NODE_ENV: process.env.NODE_ENV ?? "development",
   CLIENT_ORIGIN: requireEnv("CLIENT_ORIGIN"),
+
+  // Database — grouped under a nested object so the connection pool can
+  // be initialized by passing the whole sub-object straight to the pg library.
+  DATABASE: {
+    HOST: requireEnv("DATABASE_HOST"),
+    PORT: Number(requireEnv("DATABASE_PORT")),
+    NAME: requireEnv("DATABASE_NAME"),
+    USER: requireEnv("DATABASE_USER"),
+    PASSWORD: requireEnv("DATABASE_PASSWORD"),
+  },
 } as const;
-//   ^^^^^^^^^ "as const" tells TypeScript to treat this object as deeply
-//   readonly. The values become literal types instead of generic strings.
-//   It's a small thing but it prevents bugs where someone accidentally
-//   reassigns env values at runtime.

@@ -16,33 +16,33 @@
 // reaches a handler.
 
 import type { Request, Response, NextFunction } from "express";
-// "import type" tells TypeScript: I only need these for type-checking,
-// don't include them in the compiled JS output. It's a small optimization
-// but signals good TypeScript hygiene.
 
 export function requestLogger(
   req: Request,
   res: Response,
   next: NextFunction,
 ): void {
-  // Capture the time BEFORE the request is handled so we can compute
-  // how long it took to respond. This is a classic web server logging pattern.
   const startTime = Date.now();
 
-  // Log the incoming request immediately. We don't know the response status
-  // yet — that's known only AFTER downstream middleware/handlers run.
-  console.log(`→ ${req.method} ${req.url}`);
+  // IMPORTANT: use req.originalUrl, not req.url.
+  //
+  // Express has two URL properties:
+  //   - req.url:         relative to the current router. Gets rewritten
+  //                      when the request enters a sub-router (e.g.,
+  //                      "/health" becomes "/" inside the /health router).
+  //   - req.originalUrl: the original, unchanged URL the client requested.
+  //                      Stays "/health" no matter how the routers process it.
+  //
+  // For logging, we want originalUrl — otherwise the response log line
+  // shows the router-relative path, not what the client actually asked for.
+  console.log(`→ ${req.method} ${req.originalUrl}`);
 
-  // Express fires the "finish" event on the response object when it has
-  // been fully sent back to the client. We hook into that to log the result.
   res.on("finish", () => {
     const duration = Date.now() - startTime;
     console.log(
-      `← ${req.method} ${req.url} ${res.statusCode} (${duration}ms)`,
+      `← ${req.method} ${req.originalUrl} ${res.statusCode} (${duration}ms)`,
     );
   });
 
-  // Hand off to the next middleware/route. WITHOUT this line, the request
-  // never reaches the route handler — the server would hang forever.
   next();
 }
