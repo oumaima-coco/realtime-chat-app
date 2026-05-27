@@ -25,13 +25,20 @@ export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   CLIENT_ORIGIN: requireEnv("CLIENT_ORIGIN"),
 
-  // Database — grouped under a nested object so the connection pool can
-  // be initialized by passing the whole sub-object straight to the pg library.
+  // Database
   DATABASE: {
     HOST: requireEnv("DATABASE_HOST"),
     PORT: Number(requireEnv("DATABASE_PORT")),
     NAME: requireEnv("DATABASE_NAME"),
     USER: requireEnv("DATABASE_USER"),
     PASSWORD: requireEnv("DATABASE_PASSWORD"),
+  },
+
+  // Authentication — JWT signing secret and token expiry.
+  // JWT_EXPIRES_IN uses jsonwebtoken's shorthand: "7d" = 7 days,
+  // "24h" = 24 hours, "60m" = 60 minutes, etc.
+  JWT: {
+    SECRET: requireEnv("JWT_SECRET"),
+    EXPIRES_IN: process.env.JWT_EXPIRES_IN ?? "7d",
   },
 } as const;
