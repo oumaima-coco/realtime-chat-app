@@ -1,0 +1,97 @@
+/*
+ * Design tokens — the single source of truth for colors, spacing,
+ * typography, and shape. Every CSS file in the app references these
+ * variables instead of hardcoding values.
+ *
+ * Why? Suppose you want to change the accent color. With hardcoded
+ * values, you'd hunt through every CSS file replacing #e8757a everywhere.
+ * With tokens, you change one line here and the whole app updates.
+ *
+ * This is one of the most fundamental patterns in modern frontend design,
+ * used in design systems at Airbnb, Stripe, Shopify, etc.
+ */
+
+:root {
+  /* ===== COLORS ===== */
+
+  /* Backgrounds — warm cream tones, not pure white */
+  --color-bg:           #fdf8f5;  /* Page background */
+  --color-surface:      #ffffff;  /* Cards, inputs — slightly elevated */
+  --color-surface-alt:  #f5ede6;  /* Subtle alternate sections */
+
+  /* Text — near-black with warmth, not stark black */
+  --color-text:         #2a2520;  /* Primary text */
+  --color-text-muted:   #756b62;  /* Secondary text, hints, labels */
+  --color-text-soft:    #a89e94;  /* Placeholder text */
+
+  /* Accent — dusty coral/rose, warm and friendly */
+  --color-accent:        #e8757a;  /* Primary buttons, links, highlights */
+  --color-accent-hover:  #d85f65;  /* Darker on hover */
+  --color-accent-soft:   #fde4e5;  /* Light tinted background variant */
+
+  /* Secondary accent — sage green for "online", success states */
+  --color-success:       #7a9e7a;
+  --color-success-soft:  #e4ede4;
+
+  /* Error / danger — muted terracotta */
+  --color-error:         #c25c5c;
+  --color-error-soft:    #f9e4e4;
+
+  /* Borders */
+  --color-border:        #e8ddd2;
+  --color-border-strong: #d4c5b5;
+
+  /* ===== TYPOGRAPHY ===== */
+
+  /* A friendly sans-serif stack. Lays the foundation; we can swap to
+     Google Fonts later if we want something more distinctive. */
+  --font-sans:
+    "Nunito", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", Arial, sans-serif;
+
+  /* Type scale — gentle progression, not aggressive */
+  --text-xs:   0.75rem;   /* 12px — captions, hints */
+  --text-sm:   0.875rem;  /* 14px — labels, secondary */
+  --text-base: 1rem;      /* 16px — body */
+  --text-lg:   1.125rem;  /* 18px — emphasized */
+  --text-xl:   1.5rem;    /* 24px — section heads */
+  --text-2xl:  2rem;      /* 32px — page headings */
+  --text-3xl:  2.5rem;    /* 40px — hero headings */
+
+  /* Line height — generous for readability */
+  --leading-tight:   1.25;
+  --leading-normal:  1.6;
+
+  /* ===== SPACING ===== */
+  /* Scale based on multiples of 4px — common in design systems */
+
+  --space-1:  0.25rem;   /* 4px */
+  --space-2:  0.5rem;    /* 8px */
+  --space-3:  0.75rem;   /* 12px */
+  --space-4:  1rem;      /* 16px */
+  --space-5:  1.5rem;    /* 24px */
+  --space-6:  2rem;      /* 32px */
+  --space-8:  3rem;      /* 48px */
+  --space-10: 4rem;      /* 64px */
+
+  /* ===== SHAPE — rounded everything, per "friendly" vibe ===== */
+
+  --radius-sm:   8px;    /* Small elements (chips, badges) */
+  --radius-md:   12px;   /* Inputs, buttons */
+  --radius-lg:   16px;   /* Cards, larger surfaces */
+  --radius-xl:   24px;   /* Hero panels */
+  --radius-full: 9999px; /* Pills, avatars */
+
+  /* ===== SHADOWS — subtle, warm-tinted ===== */
+  /* The colored shadow approach (using accent tint instead of black)
+     is what gives the "soft" feel — pure-black shadows feel sterile. */
+
+  --shadow-sm: 0 1px 2px rgba(102, 65, 55, 0.05);
+  --shadow-md: 0 4px 12px rgba(102, 65, 55, 0.08);
+  --shadow-lg: 0 12px 32px rgba(102, 65, 55, 0.12);
+
+  /* ===== TRANSITIONS — gentle, not snappy ===== */
+
+  --transition-fast:   120ms ease;
+  --transition-normal: 200ms ease;
+}

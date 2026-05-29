@@ -1,0 +1,153 @@
+/* Global styles for the whole app. */
+
+/* Import design tokens first so :root variables are available everywhere. */
+@import "./tokens.css";
+
+/* ===== RESET ===== */
+/* A minimal CSS reset to normalize defaults across browsers. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ===== BODY ===== */
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===== TYPOGRAPHY ===== */
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  color: var(--color-text);
+}
+
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-lg); }
+
+p {
+  color: var(--color-text);
+}
+
+/* ===== LINKS ===== */
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ===== FORM ELEMENTS ===== */
+
+button {
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
+  background-color: var(--color-accent);
+  color: white;
+  transition: background-color var(--transition-fast),
+              transform var(--transition-fast),
+              box-shadow var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+button:hover {
+  background-color: var(--color-accent-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+  /* Subtle "lift" on hover — gives feedback without being aggressive. */
+}
+
+button:active {
+  transform: translateY(0);
+  /* Press it back down on click — completes the tactile illusion. */
+}
+
+button:disabled {
+  background-color: var(--color-text-soft);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  background-color: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  width: 100%;
+  transition: border-color var(--transition-fast),
+              box-shadow var(--transition-fast);
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 4px var(--color-accent-soft);
+  /* The "focus ring" — a ring of soft accent color when the input is
+     focused. Accessibility win: clearly shows keyboard users where they
+     are. The 4px width feels modern; older designs used 2px. */
+}
+
+input::placeholder {
+  color: var(--color-text-soft);
+}
+
+/* ===== UTILITY: page wrapper ===== */
+/* Used by every page component as the outermost element.
+   Centers content and adds breathing room. */
+
+/* ===== UTILITY: page wrapper ===== */
+/* Every page component uses .page as its outermost element.
+   Centers content and ensures comfortable proportions on any screen size. */
+
+.page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-6);
+  /* Wider than before (680px instead of 540px) so the hero panel doesn't
+     look cramped on wide screens. Still narrow enough to keep reading
+     comfortable — eyes get tired reading lines wider than ~75 characters. */
+}
+
+/* A variant that vertically centers the page content too — used for
+   focused-task screens like login or registration where there's no
+   reason to anchor content to the top. */
+.page--centered {
+  min-height: calc(100vh - var(--space-10));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+}
