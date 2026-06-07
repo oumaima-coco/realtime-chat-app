@@ -1,8 +1,27 @@
-// Home page — the landing page users see when they visit "/".
+// Home page — welcome screen for logged-out users.
+// If the user is already logged in, redirect to /chat.
 
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function Home() {
+  const { user, isLoading } = useAuth();
+
+  // Wait for the initial token verification before deciding what to show.
+  // Otherwise the page might flash the home screen briefly before redirecting.
+  if (isLoading) {
+    return (
+      <div className="page page--centered">
+        <p style={{ color: "var(--color-text-muted)" }}>Loading...</p>
+      </div>
+    );
+  }
+
+  // Already logged in — straight to chat.
+  if (user) {
+    return <Navigate to="/chat" replace />;
+  }
+
   return (
     <div className="page">
       <div className="home-hero">
