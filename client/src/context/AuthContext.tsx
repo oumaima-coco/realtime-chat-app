@@ -27,6 +27,7 @@ import {
 import * as authApi from "../api/auth.api";
 import type { User } from "../api/auth.api";
 import { STORAGE_KEYS } from "../api/axios";
+import { disconnectSocket } from "../api/socket";
 
 // Shape of what the context provides to consumers.
 interface AuthContextValue {
@@ -101,11 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(newUser);
   }
 
-  function logout() {
-    localStorage.removeItem(STORAGE_KEYS.TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.USER);
-    setUser(null);
-  }
+function logout() {
+  disconnectSocket();
+  localStorage.removeItem(STORAGE_KEYS.TOKEN);
+  localStorage.removeItem(STORAGE_KEYS.USER);
+  setUser(null);
+}
 
   return (
     <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>

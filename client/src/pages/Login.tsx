@@ -96,15 +96,26 @@ function Login() {
 // Helper: extract a human-friendly error message from an axios error.
 // Axios errors have a nested structure: err.response.data.error for our backend.
 function extractErrorMessage(err: unknown): string {
-  if (
-    typeof err === "object" &&
-    err !== null &&
-    "response" in err &&
-    typeof (err as { response?: { data?: { error?: string } } }).response
-      ?.data?.error === "string"
-  ) {
-    return (err as { response: { data: { error: string } } }).response.data.error;
+  if (typeof err !== "object" || err === null) {
+    return "Login failed. Please try again.";
   }
+
+  const errObj = err as {
+    response?: { data?: { error?: string } };
+    code?: string;
+    message?: string;
+  };
+
+  // Server-returned error (the response came back with a 4xx status).
+  if (typeof errObj.response?.data?.error === "string") {
+    return errObj.response.data.error;
+  }
+
+  // No response at all — network failure. Most likely the backend isn't running.
+  if (errObj.code === "ERR_NETWORK" || errObj.message === "Network Error") {
+    return "Cannot reach the server. Is the backend running?";
+  }
+
   return "Login failed. Please try again.";
 }
 

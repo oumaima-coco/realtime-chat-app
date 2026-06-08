@@ -105,15 +105,24 @@ function Register() {
 }
 
 function extractErrorMessage(err: unknown): string {
-  if (
-    typeof err === "object" &&
-    err !== null &&
-    "response" in err &&
-    typeof (err as { response?: { data?: { error?: string } } }).response
-      ?.data?.error === "string"
-  ) {
-    return (err as { response: { data: { error: string } } }).response.data.error;
+  if (typeof err !== "object" || err === null) {
+    return "Registration failed. Please try again.";
   }
+
+  const errObj = err as {
+    response?: { data?: { error?: string } };
+    code?: string;
+    message?: string;
+  };
+
+  if (typeof errObj.response?.data?.error === "string") {
+    return errObj.response.data.error;
+  }
+
+  if (errObj.code === "ERR_NETWORK" || errObj.message === "Network Error") {
+    return "Cannot reach the server. Is the backend running?";
+  }
+
   return "Registration failed. Please try again.";
 }
 
