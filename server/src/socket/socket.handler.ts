@@ -1,4 +1,4 @@
-// Socket.io connection handler — runs once per authenticated connection.
+// Socket.io connection handler — multi-room edition.
 
 import type { Server, Socket } from "socket.io";
 import type {
@@ -9,17 +9,11 @@ import type {
   ChatMessage,
 } from "../types/socket.types.js";
 import { randomUUID } from "node:crypto";
+import { isUserInRoom } from "../services/rooms.service.js";
 
-// Typed Server and Socket aliases.
-// We use single-line generics here to avoid paste mangling.
-// Generic args order: ClientToServer, ServerToClient, InterServer, SocketData.
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
-
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
-// Phase 7 design choice: one big global "lobby" where every message
-// is broadcast to every connected client. No per-room logic yet.
-// Phase 8 will replace this with proper rooms.
 export function registerSocketHandlers(io: TypedServer, socket: TypedSocket): void {
   const user = socket.data.user;
 
@@ -29,11 +23,47 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket): vo
     console.log(`[socket] disconnected: ${user.username} (reason: ${reason})`);
   });
 
-  socket.on("message:send", (payload, ack) => {
-    // Validate the incoming data. Auth doesn't guarantee well-formed inputs.
-    const content =
-      typeof payload?.content === "string" ? payload.content.trim() : "";
+  // Subscribe this socket to a room's broadcast group.
+  socket.on("room:join", async (payload, ack) => {
+    const roomId = payload?.roomId;
+    if (typeof roomId !== "string" || roomId.length === 0) {
+      ack({ ok: false, error: "Invalid room ID" });
+      return;
+    }
 
+    // Verify the user is a database-member. We don't trust the client to
+    // tell us which rooms it's "allowed" in — we check ourselves.
+    const isMember = await isUserInRoom(roomId, user.id);
+    if (!isMember) {
+      ack({ ok: false, error: "Not a member of this room" });
+      return;
+    }
+
+    // socket.join() is Socket.io's built-in room subscription.
+    // After this, io.to(roomId).emit(...) will deliver to this socket.
+    socket.join(roomId);
+    console.log(`[socket] ${user.username} joined room ${roomId}`);
+    ack({ ok: true });
+  });
+
+  // Unsubscribe from a room's broadcasts. No DB-level change.
+  socket.on("room:leave", (payload) => {
+    const roomId = payload?.roomId;
+    if (typeof roomId === "string" && roomId.length > 0) {
+      socket.leave(roomId);
+      console.log(`[socket] ${user.username} left room ${roomId}`);
+    }
+  });
+
+  // Send a message to a specific room.
+  socket.on("message:send", async (payload, ack) => {
+    const roomId = payload?.roomId;
+    const content = typeof payload?.content === "string" ? payload.content.trim() : "";
+
+    if (typeof roomId !== "string" || roomId.length === 0) {
+      ack({ ok: false, error: "Invalid room ID" });
+      return;
+    }
     if (content.length === 0) {
       ack({ ok: false, error: "Message content cannot be empty" });
       return;
@@ -43,18 +73,27 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket): vo
       return;
     }
 
-    // Build the message. In Phase 9 we'll persist these to PostgreSQL
-    // and use the database-generated ID. For now, generate in-memory.
+    // Authorization: confirm the user is allowed to post to this room.
+    // We re-check on every message — never trust the client's claim that
+    // they're in a room.
+    const isMember = await isUserInRoom(roomId, user.id);
+    if (!isMember) {
+      ack({ ok: false, error: "Not a member of this room" });
+      return;
+    }
+
     const message: ChatMessage = {
       id: randomUUID(),
+      roomId,
       content,
       senderId: user.id,
       senderUsername: user.username,
       createdAt: new Date().toISOString(),
     };
 
-    // Broadcast to every connected client — including the sender.
-    io.emit("message:new", message);
+    // Emit to all sockets in this room (including the sender's).
+    // io.to(roomId) is the room-scoped version of io.emit().
+    io.to(roomId).emit("message:new", message);
 
     ack({ ok: true });
   });

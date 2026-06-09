@@ -14,6 +14,7 @@ import healthRoutes from "./routes/health.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import { authenticateSocket } from "./socket/socket.middleware.js";
 import { registerSocketHandlers } from "./socket/socket.handler.js";
+import roomsRoutes from "./routes/rooms.routes.js";
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
@@ -28,9 +29,11 @@ app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
 app.use(express.json());
 app.use(requestLogger);
 
+
 // ---- Routes ----
 app.use("/health", healthRoutes);
 app.use("/auth", authRoutes);
+app.use("/rooms", roomsRoutes);
 
 // ---- HTTP server ----
 // Until now we used app.listen() directly. Express internally creates an
