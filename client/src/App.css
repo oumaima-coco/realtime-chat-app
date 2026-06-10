@@ -439,3 +439,30 @@
   gap: var(--space-3);
   margin-top: var(--space-3);
 }
+
+/* ===== "Load more" button at top of message list ===== */
+
+.load-more-button {
+  align-self: center;
+  background-color: transparent;
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border-strong);
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-full);
+  box-shadow: none;
+  margin-bottom: var(--space-2);
+}
+
+.load-more-button:hover {
+  background-color: var(--color-surface-alt);
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+  transform: none;
+  box-shadow: none;
+}
+
+.load-more-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

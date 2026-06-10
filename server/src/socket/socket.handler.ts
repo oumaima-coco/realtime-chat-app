@@ -1,4 +1,5 @@
-// Socket.io connection handler — multi-room edition.
+// Socket.io connection handler.
+// Now with database persistence: every message is saved BEFORE broadcasting.
 
 import type { Server, Socket } from "socket.io";
 import type {
@@ -6,10 +7,9 @@ import type {
   ServerToClientEvents,
   InterServerEvents,
   SocketData,
-  ChatMessage,
 } from "../types/socket.types.js";
-import { randomUUID } from "node:crypto";
 import { isUserInRoom } from "../services/rooms.service.js";
+import { saveMessage } from "../services/messages.service.js";
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -23,7 +23,6 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket): vo
     console.log(`[socket] disconnected: ${user.username} (reason: ${reason})`);
   });
 
-  // Subscribe this socket to a room's broadcast group.
   socket.on("room:join", async (payload, ack) => {
     const roomId = payload?.roomId;
     if (typeof roomId !== "string" || roomId.length === 0) {
@@ -31,22 +30,17 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket): vo
       return;
     }
 
-    // Verify the user is a database-member. We don't trust the client to
-    // tell us which rooms it's "allowed" in — we check ourselves.
     const isMember = await isUserInRoom(roomId, user.id);
     if (!isMember) {
       ack({ ok: false, error: "Not a member of this room" });
       return;
     }
 
-    // socket.join() is Socket.io's built-in room subscription.
-    // After this, io.to(roomId).emit(...) will deliver to this socket.
     socket.join(roomId);
     console.log(`[socket] ${user.username} joined room ${roomId}`);
     ack({ ok: true });
   });
 
-  // Unsubscribe from a room's broadcasts. No DB-level change.
   socket.on("room:leave", (payload) => {
     const roomId = payload?.roomId;
     if (typeof roomId === "string" && roomId.length > 0) {
@@ -55,11 +49,11 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket): vo
     }
   });
 
-  // Send a message to a specific room.
   socket.on("message:send", async (payload, ack) => {
     const roomId = payload?.roomId;
     const content = typeof payload?.content === "string" ? payload.content.trim() : "";
 
+    // Input validation.
     if (typeof roomId !== "string" || roomId.length === 0) {
       ack({ ok: false, error: "Invalid room ID" });
       return;
@@ -73,28 +67,29 @@ export function registerSocketHandlers(io: TypedServer, socket: TypedSocket): vo
       return;
     }
 
-    // Authorization: confirm the user is allowed to post to this room.
-    // We re-check on every message — never trust the client's claim that
-    // they're in a room.
+    // Authorization.
     const isMember = await isUserInRoom(roomId, user.id);
     if (!isMember) {
       ack({ ok: false, error: "Not a member of this room" });
       return;
     }
 
-    const message: ChatMessage = {
-      id: randomUUID(),
-      roomId,
-      content,
-      senderId: user.id,
-      senderUsername: user.username,
-      createdAt: new Date().toISOString(),
-    };
+    // ---- DUAL-WRITE PATTERN ----
+    // Step 1: persist to the database. If this throws (DB down,
+    // connection lost), we never broadcast — clients won't see a message
+    // that doesn't exist in storage.
+    try {
+      const message = await saveMessage(roomId, user.id, content);
 
-    // Emit to all sockets in this room (including the sender's).
-    // io.to(roomId) is the room-scoped version of io.emit().
-    io.to(roomId).emit("message:new", message);
+      // Step 2: broadcast to all sockets in this room.
+      // We use the database-generated id and createdAt timestamp so the
+      // broadcast matches exactly what's in the DB.
+      io.to(roomId).emit("message:new", message);
 
-    ack({ ok: true });
+      ack({ ok: true });
+    } catch (err) {
+      console.error("Failed to save/broadcast message:", err);
+      ack({ ok: false, error: "Failed to send message" });
+    }
   });
 }

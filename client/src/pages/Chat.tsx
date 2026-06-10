@@ -1,9 +1,4 @@
-// Chat page — multi-room edition.
-//
-// Layout: sidebar on the left (room list), main pane on the right (messages).
-// The main pane shows either:
-//   - "Select a room" placeholder when no room is active
-//   - The room's messages + composer when a room is selected
+// Chat page — with database-backed history and pagination.
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { useRooms } from "../context/RoomsContext";
 import { useSocket } from "../hooks/useSocket";
 import { RoomsSidebar } from "../components/RoomsSidebar";
+import { getRoomMessages } from "../api/messages.api";
 import type { ChatMessage } from "../types/socket.types";
 
 function Chat() {
@@ -19,39 +15,72 @@ function Chat() {
   const { selectedRoom } = useRooms();
   const { socket, isConnected } = useSocket();
 
-  // Messages are stored per room.
-  // Key: roomId, Value: array of messages for that room.
-  // This lets us preserve messages from rooms the user has visited even
-  // when they switch back and forth.
+  // Per-room state. Keyed by roomId so switching rooms doesn't lose state.
   const [messagesByRoom, setMessagesByRoom] = useState<Record<string, ChatMessage[]>>({});
+  const [hasMoreByRoom, setHasMoreByRoom] = useState<Record<string, boolean>>({});
+  const [loadingByRoom, setLoadingByRoom] = useState<Record<string, boolean>>({});
+
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  // Track whether the next auto-scroll should happen. After loading older
+  // history, we DON'T want to scroll to the bottom — the user is reading older
+  // messages. Only auto-scroll on initial load or new live messages.
+  const shouldAutoScrollRef = useRef(true);
 
-  // Effect: when the selected room changes, tell the socket to "join" that
-  // room's broadcast group. When we switch away, leave the previous one.
+  // ---- Effect: load initial messages when selectedRoom changes ----
+  // This fires when the user picks a different room. We fetch the latest
+  // 50 messages from the DB if we don't already have them in state.
+  useEffect(() => {
+    if (!selectedRoom) return;
+
+    const roomId = selectedRoom.id;
+    // Skip if we already loaded this room in this session.
+    if (messagesByRoom[roomId] !== undefined) return;
+
+    let cancelled = false;
+    setLoadingByRoom((prev) => ({ ...prev, [roomId]: true }));
+
+    getRoomMessages(roomId)
+      .then((page) => {
+        // The cancelled check handles a race: if the user switches rooms
+        // quickly, the response for the previous room might arrive after
+        // the new room is selected. We discard the stale response.
+        if (cancelled) return;
+        setMessagesByRoom((prev) => ({ ...prev, [roomId]: page.messages }));
+        setHasMoreByRoom((prev) => ({ ...prev, [roomId]: page.hasMore }));
+        shouldAutoScrollRef.current = true;
+      })
+      .catch((err) => {
+        console.error("Failed to load messages:", err);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingByRoom((prev) => ({ ...prev, [roomId]: false }));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRoom, messagesByRoom]);
+
+  // ---- Effect: join the socket room when selectedRoom changes ----
   useEffect(() => {
     if (!socket || !selectedRoom) return;
 
     const roomId = selectedRoom.id;
     socket.emit("room:join", { roomId }, (response) => {
-      if (!response.ok) {
-        console.error("Failed to join room:", response.error);
-      }
+      if (!response.ok) console.error("Failed to join room:", response.error);
     });
 
-    // Cleanup: when selectedRoom changes OR the component unmounts,
-    // leave the previous room.
     return () => {
       socket.emit("room:leave", { roomId });
     };
   }, [socket, selectedRoom]);
 
-  // Effect: subscribe to incoming messages globally.
-  // Every message we receive is tagged with its roomId, so we file it
-  // into the right room's bucket regardless of which room is currently
-  // displayed.
+  // ---- Effect: subscribe to incoming messages ----
   useEffect(() => {
     if (!socket) return;
 
@@ -60,6 +89,7 @@ function Chat() {
         ...prev,
         [message.roomId]: [...(prev[message.roomId] ?? []), message],
       }));
+      shouldAutoScrollRef.current = true;
     }
 
     socket.on("message:new", handleNewMessage);
@@ -68,10 +98,14 @@ function Chat() {
     };
   }, [socket]);
 
-  // Auto-scroll when messages for the current room change.
+  // ---- Effect: auto-scroll to bottom when appropriate ----
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldAutoScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messagesByRoom, selectedRoom]);
+
+  // ---- Handlers ----
 
   function handleLogout() {
     logout();
@@ -102,7 +136,39 @@ function Chat() {
     );
   }
 
+  async function handleLoadMore() {
+    if (!selectedRoom) return;
+    const roomId = selectedRoom.id;
+    const currentMessages = messagesByRoom[roomId] ?? [];
+    if (currentMessages.length === 0) return;
+
+    // Cursor = the createdAt of the oldest message we currently have.
+    const oldestMessage = currentMessages[0];
+
+    setLoadingByRoom((prev) => ({ ...prev, [roomId]: true }));
+    try {
+      const page = await getRoomMessages(roomId, {
+        before: oldestMessage.createdAt,
+      });
+
+      // Prepend older messages at the top. Disable auto-scroll for this update.
+      shouldAutoScrollRef.current = false;
+      setMessagesByRoom((prev) => ({
+        ...prev,
+        [roomId]: [...page.messages, ...(prev[roomId] ?? [])],
+      }));
+      setHasMoreByRoom((prev) => ({ ...prev, [roomId]: page.hasMore }));
+    } catch (err) {
+      console.error("Failed to load more messages:", err);
+    } finally {
+      setLoadingByRoom((prev) => ({ ...prev, [roomId]: false }));
+    }
+  }
+
+  // ---- Computed values for rendering ----
   const currentMessages = selectedRoom ? messagesByRoom[selectedRoom.id] ?? [] : [];
+  const isLoadingCurrent = selectedRoom ? loadingByRoom[selectedRoom.id] ?? false : false;
+  const hasMore = selectedRoom ? hasMoreByRoom[selectedRoom.id] ?? false : false;
 
   return (
     <div className="chat-shell">
@@ -131,7 +197,18 @@ function Chat() {
         ) : (
           <>
             <div className="chat-messages">
-              {currentMessages.length === 0 ? (
+              {/* "Load more" button — shown only if there's older history. */}
+              {hasMore && (
+                <button
+                  className="load-more-button"
+                  onClick={handleLoadMore}
+                  disabled={isLoadingCurrent}
+                >
+                  {isLoadingCurrent ? "Loading…" : "Load older messages"}
+                </button>
+              )}
+
+              {currentMessages.length === 0 && !isLoadingCurrent ? (
                 <p className="chat-empty">No messages yet in #{selectedRoom.name}.</p>
               ) : (
                 currentMessages.map((msg) => {
