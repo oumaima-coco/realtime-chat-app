@@ -4,6 +4,13 @@
 export interface ServerToClientEvents {
   "message:new": (message: ChatMessage) => void;
   "message:error": (payload: { message: string }) => void;
+
+  "presence:online": (payload: { userId: string }) => void;
+  "presence:offline": (payload: { userId: string }) => void;
+  "presence:snapshot": (payload: { onlineUserIds: string[] }) => void;
+
+  "typing:start": (payload: { roomId: string; userId: string; username: string }) => void;
+  "typing:stop": (payload: { roomId: string; userId: string }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -18,6 +25,13 @@ export interface ClientToServerEvents {
     payload: { roomId: string; content: string },
     ack: (response: { ok: true } | { ok: false; error: string }) => void,
   ) => void;
+
+  "presence:request": (
+    ack: (payload: { onlineUserIds: string[] }) => void,
+  ) => void;
+
+  "typing:start": (payload: { roomId: string }) => void;
+  "typing:stop": (payload: { roomId: string }) => void;
 }
 
 export interface ChatMessage {

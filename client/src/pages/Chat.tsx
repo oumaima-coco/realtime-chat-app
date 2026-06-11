@@ -1,13 +1,20 @@
-// Chat page — with database-backed history and pagination.
+// Chat page — Phase 10: presence + typing indicators.
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useRooms } from "../context/RoomsContext";
 import { useSocket } from "../hooks/useSocket";
+import { useTypingIndicator } from "../hooks/useTypingIndicator";
 import { RoomsSidebar } from "../components/RoomsSidebar";
 import { getRoomMessages } from "../api/messages.api";
 import type { ChatMessage } from "../types/socket.types";
+
+// Shape of a typing user as we track them client-side.
+interface TypingUser {
+  userId: string;
+  username: string;
+}
 
 function Chat() {
   const navigate = useNavigate();
@@ -15,28 +22,30 @@ function Chat() {
   const { selectedRoom } = useRooms();
   const { socket, isConnected } = useSocket();
 
-  // Per-room state. Keyed by roomId so switching rooms doesn't lose state.
   const [messagesByRoom, setMessagesByRoom] = useState<Record<string, ChatMessage[]>>({});
   const [hasMoreByRoom, setHasMoreByRoom] = useState<Record<string, boolean>>({});
   const [loadingByRoom, setLoadingByRoom] = useState<Record<string, boolean>>({});
+
+  // Per-room map of who's currently typing. Keyed by roomId so switching
+  // rooms doesn't lose info about typists in the previous room.
+  const [typingByRoom, setTypingByRoom] = useState<Record<string, TypingUser[]>>({});
 
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  // Track whether the next auto-scroll should happen. After loading older
-  // history, we DON'T want to scroll to the bottom — the user is reading older
-  // messages. Only auto-scroll on initial load or new live messages.
   const shouldAutoScrollRef = useRef(true);
 
-  // ---- Effect: load initial messages when selectedRoom changes ----
-  // This fires when the user picks a different room. We fetch the latest
-  // 50 messages from the DB if we don't already have them in state.
+  // The debounced typing emit, tied to the current room.
+  const { handleTyping, stopTyping } = useTypingIndicator(
+    socket,
+    selectedRoom?.id ?? null,
+  );
+
+  // ---- Load history when switching rooms ----
   useEffect(() => {
     if (!selectedRoom) return;
-
     const roomId = selectedRoom.id;
-    // Skip if we already loaded this room in this session.
     if (messagesByRoom[roomId] !== undefined) return;
 
     let cancelled = false;
@@ -44,21 +53,14 @@ function Chat() {
 
     getRoomMessages(roomId)
       .then((page) => {
-        // The cancelled check handles a race: if the user switches rooms
-        // quickly, the response for the previous room might arrive after
-        // the new room is selected. We discard the stale response.
         if (cancelled) return;
         setMessagesByRoom((prev) => ({ ...prev, [roomId]: page.messages }));
         setHasMoreByRoom((prev) => ({ ...prev, [roomId]: page.hasMore }));
         shouldAutoScrollRef.current = true;
       })
-      .catch((err) => {
-        console.error("Failed to load messages:", err);
-      })
+      .catch((err) => console.error("Failed to load messages:", err))
       .finally(() => {
-        if (!cancelled) {
-          setLoadingByRoom((prev) => ({ ...prev, [roomId]: false }));
-        }
+        if (!cancelled) setLoadingByRoom((prev) => ({ ...prev, [roomId]: false }));
       });
 
     return () => {
@@ -66,21 +68,19 @@ function Chat() {
     };
   }, [selectedRoom, messagesByRoom]);
 
-  // ---- Effect: join the socket room when selectedRoom changes ----
+  // ---- Join the socket room ----
   useEffect(() => {
     if (!socket || !selectedRoom) return;
-
     const roomId = selectedRoom.id;
     socket.emit("room:join", { roomId }, (response) => {
       if (!response.ok) console.error("Failed to join room:", response.error);
     });
-
     return () => {
       socket.emit("room:leave", { roomId });
     };
   }, [socket, selectedRoom]);
 
-  // ---- Effect: subscribe to incoming messages ----
+  // ---- Subscribe to incoming messages ----
   useEffect(() => {
     if (!socket) return;
 
@@ -98,16 +98,50 @@ function Chat() {
     };
   }, [socket]);
 
-  // ---- Effect: auto-scroll to bottom when appropriate ----
+  // ---- Subscribe to typing events ----
+  useEffect(() => {
+    if (!socket) return;
+
+    function handleTypingStart(payload: { roomId: string; userId: string; username: string }) {
+      setTypingByRoom((prev) => {
+        const current = prev[payload.roomId] ?? [];
+        // Idempotency: don't duplicate if the user is already in the list.
+        if (current.some((u) => u.userId === payload.userId)) return prev;
+        return {
+          ...prev,
+          [payload.roomId]: [...current, { userId: payload.userId, username: payload.username }],
+        };
+      });
+    }
+
+    function handleTypingStop(payload: { roomId: string; userId: string }) {
+      setTypingByRoom((prev) => {
+        const current = prev[payload.roomId] ?? [];
+        const filtered = current.filter((u) => u.userId !== payload.userId);
+        // If nothing changed, return prev to avoid unnecessary re-renders.
+        if (filtered.length === current.length) return prev;
+        return { ...prev, [payload.roomId]: filtered };
+      });
+    }
+
+    socket.on("typing:start", handleTypingStart);
+    socket.on("typing:stop", handleTypingStop);
+
+    return () => {
+      socket.off("typing:start", handleTypingStart);
+      socket.off("typing:stop", handleTypingStop);
+    };
+  }, [socket]);
+
+  // ---- Auto-scroll ----
   useEffect(() => {
     if (shouldAutoScrollRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messagesByRoom, selectedRoom]);
 
-  // ---- Handlers ----
-
   function handleLogout() {
+    stopTyping();
     logout();
     navigate("/");
   }
@@ -129,6 +163,7 @@ function Chat() {
       (response) => {
         if (response.ok) {
           setDraft("");
+          stopTyping();  // Sending implies stop typing.
         } else {
           setSendError(response.error);
         }
@@ -142,16 +177,11 @@ function Chat() {
     const currentMessages = messagesByRoom[roomId] ?? [];
     if (currentMessages.length === 0) return;
 
-    // Cursor = the createdAt of the oldest message we currently have.
     const oldestMessage = currentMessages[0];
 
     setLoadingByRoom((prev) => ({ ...prev, [roomId]: true }));
     try {
-      const page = await getRoomMessages(roomId, {
-        before: oldestMessage.createdAt,
-      });
-
-      // Prepend older messages at the top. Disable auto-scroll for this update.
+      const page = await getRoomMessages(roomId, { before: oldestMessage.createdAt });
       shouldAutoScrollRef.current = false;
       setMessagesByRoom((prev) => ({
         ...prev,
@@ -165,10 +195,20 @@ function Chat() {
     }
   }
 
-  // ---- Computed values for rendering ----
+  // Compute the "X is typing..." string for the current room.
+  function buildTypingLabel(): string | null {
+    if (!selectedRoom) return null;
+    const typists = typingByRoom[selectedRoom.id] ?? [];
+    if (typists.length === 0) return null;
+    if (typists.length === 1) return `${typists[0].username} is typing…`;
+    if (typists.length === 2) return `${typists[0].username} and ${typists[1].username} are typing…`;
+    return `${typists.length} people are typing…`;
+  }
+
   const currentMessages = selectedRoom ? messagesByRoom[selectedRoom.id] ?? [] : [];
   const isLoadingCurrent = selectedRoom ? loadingByRoom[selectedRoom.id] ?? false : false;
   const hasMore = selectedRoom ? hasMoreByRoom[selectedRoom.id] ?? false : false;
+  const typingLabel = buildTypingLabel();
 
   return (
     <div className="chat-shell">
@@ -197,7 +237,6 @@ function Chat() {
         ) : (
           <>
             <div className="chat-messages">
-              {/* "Load more" button — shown only if there's older history. */}
               {hasMore && (
                 <button
                   className="load-more-button"
@@ -235,13 +274,26 @@ function Chat() {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Typing indicator banner. */}
+            {typingLabel && (
+              <div className="typing-indicator">
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span>{typingLabel}</span>
+              </div>
+            )}
+
             {sendError && <div className="form-error">{sendError}</div>}
 
             <form className="chat-composer" onSubmit={handleSubmit}>
               <input
                 type="text"
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  handleTyping();
+                }}
                 placeholder={`Message #${selectedRoom.name}…`}
                 disabled={!isConnected}
                 autoComplete="off"
