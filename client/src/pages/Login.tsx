@@ -1,122 +1,172 @@
-// Login page — collects credentials and calls AuthContext.login().
-// On success, redirects to /chat. On failure, displays the error.
-
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { MessageCircle, Zap, Users, Sparkles } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+const NETWORK_ERROR = "Cannot reach the server. Is the backend running?";
+const GENERIC_ERROR = "Login failed. Please try again.";
+
+function extractErrorMessage(err: unknown): string {
+  if (typeof err !== "object" || err === null) return GENERIC_ERROR;
+  const e = err as {
+    response?: { data?: { error?: string } };
+    code?: string;
+    message?: string;
+  };
+  if (typeof e.response?.data?.error === "string") return e.response.data.error;
+  if (e.code === "ERR_NETWORK" || e.message === "Network Error") return NETWORK_ERROR;
+  return GENERIC_ERROR;
+}
 
 function Login() {
-  // useNavigate gives us a function to change the URL programmatically.
-  // We use it after a successful login to send the user to /chat.
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  // Form state — three pieces:
-  //   - username/password: what the user is typing.
-  //   - errorMessage: a string we display if login fails (or null = no error).
-  //   - isSubmitting: true while the API call is in flight. Used to disable
-  //     the button so users don't double-submit.
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form submit handler. React passes us a synthetic event; we call
-  // preventDefault to stop the browser's default behavior (which would
-  // be a full page reload — we want SPA behavior).
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
     setIsSubmitting(true);
-
     try {
       await login(username, password);
-      // Login succeeded — AuthContext has updated. Redirect to chat.
       navigate("/chat");
     } catch (err) {
-      // The error from axios. Try to pull the message from the response;
-      // otherwise show a generic fallback.
-      const message = extractErrorMessage(err);
-      setErrorMessage(message);
+      setErrorMessage(extractErrorMessage(err));
     } finally {
-      // Either way, the request is done — re-enable the button.
       setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="page page--centered">
-      <h1>Log in</h1>
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-cream">
+      {/* ===== LEFT PANEL ===== */}
+      <div className="hidden lg:flex flex-col bg-coral text-white p-12 relative overflow-hidden">
+        {/* Decorative background circles */}
+        <div className="absolute -top-32 -right-32 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 -left-20 w-72 h-72 bg-white/5 rounded-full blur-3xl" />
+        <div className="absolute -bottom-32 right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
 
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label>
-          Username
-          <input
-            type="text"
-            name="username"
-            autoComplete="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            disabled={isSubmitting}
-            required
-          />
-        </label>
+        {/* Logo at top */}
+        <div className="relative z-10 flex items-center gap-3 mb-auto">
+          <div className="w-11 h-11 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+            <MessageCircle className="w-6 h-6" />
+          </div>
+          <span className="text-xl font-bold">Realtime Chat</span>
+        </div>
 
-        <label>
-          Password
-          <input
-            type="password"
-            name="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={isSubmitting}
-            required
-          />
-        </label>
+        {/* Centered hero content */}
+        <div className="relative z-10 my-auto space-y-6 max-w-lg">
+          <h1 className="text-6xl font-bold leading-tight tracking-tight">
+            Welcome<br />back.
+          </h1>
+          <p className="text-xl text-white/90 leading-relaxed">
+            Pick up where you left off. Your rooms, history, and conversations are waiting for you.
+          </p>
+        </div>
 
-        {/* Error banner — only renders if errorMessage is non-null.
-            `&&` short-circuits: if the left side is falsy, JSX renders nothing. */}
-        {errorMessage && (
-          <div className="form-error">{errorMessage}</div>
-        )}
+        {/* Feature highlights at bottom */}
+        <div className="relative z-10 mt-auto grid grid-cols-1 gap-4 max-w-lg">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-semibold">Instant messaging</div>
+              <div className="text-sm text-white/70">WebSocket-powered, no refresh needed</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-semibold">Multi-room conversations</div>
+              <div className="text-sm text-white/70">Create channels, invite friends</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-semibold">Presence & typing</div>
+              <div className="text-sm text-white/70">See who's online, who's typing live</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Logging in..." : "Log in"}
-        </button>
-      </form>
+      {/* ===== RIGHT PANEL ===== */}
+      <div className="flex flex-col justify-center px-6 py-12 md:px-12 lg:px-20">
+        <div className="max-w-md w-full mx-auto">
+          {/* Mobile-only logo */}
+          <div className="lg:hidden mb-8 flex items-center gap-3">
+            <div className="w-10 h-10 bg-coral rounded-xl flex items-center justify-center">
+              <MessageCircle className="w-6 h-6 text-white" />
+            </div>
+            <span className="text-xl font-bold">Realtime Chat</span>
+          </div>
 
-      <p>
-        New here? <Link to="/register">Create an account</Link>
-      </p>
+          <div className="mb-8">
+            <h2 className="text-4xl font-bold mb-3">Log in</h2>
+            <p className="text-textMuted text-lg">Sign in to continue to your rooms.</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+
+            {errorMessage && (
+              <div className="bg-rustSoft text-rust border border-rust rounded-md px-4 py-3 text-sm font-semibold">
+                {errorMessage}
+              </div>
+            )}
+
+            <Button type="submit" disabled={isSubmitting} size="lg" className="mt-3 h-12 text-base">
+              {isSubmitting ? "Logging in..." : "Log in"}
+            </Button>
+          </form>
+
+          <p className="mt-8 text-base text-textMuted text-center">
+            New here?{" "}
+            <Link to="/register" className="text-coral font-semibold hover:underline">
+              Create an account
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
-}
-
-// Helper: extract a human-friendly error message from an axios error.
-// Axios errors have a nested structure: err.response.data.error for our backend.
-function extractErrorMessage(err: unknown): string {
-  if (typeof err !== "object" || err === null) {
-    return "Login failed. Please try again.";
-  }
-
-  const errObj = err as {
-    response?: { data?: { error?: string } };
-    code?: string;
-    message?: string;
-  };
-
-  // Server-returned error (the response came back with a 4xx status).
-  if (typeof errObj.response?.data?.error === "string") {
-    return errObj.response.data.error;
-  }
-
-  // No response at all — network failure. Most likely the backend isn't running.
-  if (errObj.code === "ERR_NETWORK" || errObj.message === "Network Error") {
-    return "Cannot reach the server. Is the backend running?";
-  }
-
-  return "Login failed. Please try again.";
 }
 
 export default Login;

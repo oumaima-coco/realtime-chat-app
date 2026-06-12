@@ -1,7 +1,12 @@
-/* Global styles for the whole app. */
-
 /* Import design tokens first so :root variables are available everywhere. */
 @import "./tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global styles for the whole app. */
+
 
 /* ===== RESET ===== */
 /* A minimal CSS reset to normalize defaults across browsers. */
@@ -27,6 +32,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html {
+  background-color: var(--color-bg);
+}
 /* ===== TYPOGRAPHY ===== */
 
 h1, h2, h3, h4, h5, h6 {
