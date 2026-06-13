@@ -15,11 +15,15 @@ node_modules/
 # API tokens. They MUST never reach GitHub. We commit a .env.example
 # file (with fake values) so other developers know what variables to set,
 # but the real .env stays local-only.
+# Ignore all .env files and variants, anywhere in the repo.
 .env
-.env.local
-.env.*.local
+.env.*
 **/.env
-**/.env.local
+**/.env.*
+
+# But DO commit example files (they have fake values, no secrets).
+!.env.example
+!**/.env.example
 
 # ──────────────────────────────────────────────
 # Build output

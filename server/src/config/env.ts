@@ -9,8 +9,6 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // Helper: read a required env var and throw if it's missing.
-// "Fail fast" pattern — better to discover misconfiguration immediately
-// than at runtime when a user hits the bug.
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -19,24 +17,44 @@ function requireEnv(name: string): string {
   return value;
 }
 
-export const env = {
-  // Server
-  PORT: Number(process.env.PORT) || 3000,
-  NODE_ENV: process.env.NODE_ENV ?? "development",
-  CLIENT_ORIGIN: requireEnv("CLIENT_ORIGIN"),
-
-  // Database
-  DATABASE: {
+// Database config: support EITHER a single DATABASE_URL connection string
+// (what cloud providers like Supabase / Railway / Heroku give you),
+// OR individual host/port/user/password variables (what we use in local dev).
+// We try DATABASE_URL first; if it's not set, we fall back to the pieces.
+function buildDatabaseConfig() {
+  const url = process.env.DATABASE_URL;
+  if (url && url.length > 0) {
+    return { URL: url } as const;
+  }
+  return {
     HOST: requireEnv("DATABASE_HOST"),
     PORT: Number(requireEnv("DATABASE_PORT")),
     NAME: requireEnv("DATABASE_NAME"),
     USER: requireEnv("DATABASE_USER"),
     PASSWORD: requireEnv("DATABASE_PASSWORD"),
-  },
+  } as const;
+}
 
-  // Authentication — JWT signing secret and token expiry.
-  // JWT_EXPIRES_IN uses jsonwebtoken's shorthand: "7d" = 7 days,
-  // "24h" = 24 hours, "60m" = 60 minutes, etc.
+// CORS allowed origins. We support a comma-separated list so dev + prod
+// origins can coexist. Example value:
+//   CLIENT_ORIGIN=http://localhost:5173,https://my-app.vercel.app
+function parseClientOrigins(): string[] {
+  const raw = requireEnv("CLIENT_ORIGIN");
+  return raw.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+export const env = {
+  // Server
+  PORT: Number(process.env.PORT) || 3000,
+  NODE_ENV: process.env.NODE_ENV ?? "development",
+  // Single origin (for older code paths that expect a string)
+  // AND the full list (for CORS middleware that accepts arrays).
+  CLIENT_ORIGIN: parseClientOrigins(),
+
+  // Database — see buildDatabaseConfig above for the dual-format support.
+  DATABASE: buildDatabaseConfig(),
+
+  // Authentication
   JWT: {
     SECRET: requireEnv("JWT_SECRET"),
     EXPIRES_IN: process.env.JWT_EXPIRES_IN ?? "7d",
